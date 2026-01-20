@@ -284,15 +284,44 @@
     }
 }
 
+/// 检测当前 ViewController 是否为 UIHostingController（SwiftUI 容器）
+- (BOOL)nx_isHostingController {
+    // 检测类名是否包含 "HostingController"（覆盖 UIHostingController 及其子类）
+    NSString *className = NSStringFromClass([self class]);
+    return [className containsString:@"HostingController"];
+}
+
+/// 检测当前 View 是否为 _UIHostingView（SwiftUI 宿主视图）
+- (BOOL)nx_isHostingView:(UIView *)view {
+    if (!view) return NO;
+    NSString *className = NSStringFromClass([view class]);
+    return [className containsString:@"HostingView"] || [className containsString:@"_UIHostingView"];
+}
+
 - (void)nx_setupNavigationBar {
     if (!self.nx_navigationBar) return;
-    
+
     self.nx_navigationBar.originalNavigationBarFrame = self.navigationController.navigationBar.frame;
     self.nx_navigationBar.frame = self.navigationController.navigationBar.frame;
-    if (![self.view isKindOfClass:[UIScrollView class]]) {
+
+    // 对于 UIScrollView，跳过直接添加（在 nx_updateNavigationBarHierarchy 中处理）
+    if ([self.view isKindOfClass:[UIScrollView class]]) {
+        // Do nothing here, handled in nx_updateNavigationBarHierarchy
+    }
+    // 对于 UIHostingController，将 navigationBar 添加到 superview 而非 self.view
+    // 这避免了 Apple 的警告："Adding subviews to the _UIHostingView is not supported"
+    else if ([self nx_isHostingController] || [self nx_isHostingView:self.view]) {
+        if (self.view.superview) {
+            [self.view.superview addSubview:self.nx_navigationBar];
+            // 将 navigationBar 关联到 HostingView，以便生命周期钩子能正确清理
+            [self.view setValue:self.nx_navigationBar forKey:@"nx_hostingViewNavigationBar"];
+        }
+    }
+    // 标准 UIViewController，直接添加到 self.view
+    else {
         [self.view addSubview:self.nx_navigationBar];
     }
-    
+
     __weak typeof(self) weakSelf = self; // CurrentViewController handle nx_didUpdatePropertiesHandler callback
     self.navigationController.navigationBar.nx_didUpdatePropertiesHandler = ^(UINavigationBar *_Nonnull navigationBar) {
         __kindof UINavigationController *navigationController = (UINavigationController *)navigationBar.delegate;
@@ -353,9 +382,20 @@
 - (void)nx_updateNavigationBarFrame {
     if (self.nx_canSetupNavigationBar && !self.nx_viewWillDisappearFinished) {
         self.nx_navigationBar.originalNavigationBarFrame = self.navigationController.navigationBar.frame;
-        UIView *view = [self.view isKindOfClass:[UIScrollView class]] ? self.view.superview : self.view;
+
+        // 确定 frame 转换的目标视图
+        UIView *targetView = self.view;
+        if ([self.view isKindOfClass:[UIScrollView class]]) {
+            targetView = self.view.superview;
+        } else if ([self nx_isHostingController] || [self nx_isHostingView:self.view]) {
+            // 对于 HostingController，navigationBar 在 superview 上，所以转换目标也是 superview
+            targetView = self.view.superview;
+        }
+
         UINavigationBar *navigationBar = self.navigationController.navigationBar;
-        self.nx_navigationBar.frame = [navigationBar.superview convertRect:navigationBar.frame toView:view];
+        if (targetView && navigationBar.superview) {
+            self.nx_navigationBar.frame = [navigationBar.superview convertRect:navigationBar.frame toView:targetView];
+        }
     }
 }
 
@@ -363,13 +403,26 @@
     if (self.nx_canSetupNavigationBar) {
         // fix: 修复导航栏 contentView 被遮挡问题
         if ([self.view isKindOfClass:[UIScrollView class]]) {
+            // UIScrollView 场景：将 navigationBar 添加到 superview
             UIScrollView *view = (UIScrollView *)self.view;
             [view.nx_navigationBar removeFromSuperview];
             [self.nx_navigationBar removeFromSuperview];
-            
+
             view.nx_navigationBar = self.nx_navigationBar;
             [self.view.superview addSubview:self.nx_navigationBar];
+        } else if ([self nx_isHostingController] || [self nx_isHostingView:self.view]) {
+            // UIHostingController 场景：将 navigationBar 添加到 superview（避免 Apple 警告）
+            // 确保 navigationBar 在正确的层级
+            if (self.nx_navigationBar.superview != self.view.superview && self.view.superview) {
+                [self.nx_navigationBar removeFromSuperview];
+                [self.view.superview addSubview:self.nx_navigationBar];
+            }
+            // 确保 navigationBar 在最前面
+            if (self.view.superview) {
+                [self.view.superview bringSubviewToFront:self.nx_navigationBar];
+            }
         } else {
+            // 标准 UIViewController 场景
             [self.view bringSubviewToFront:self.nx_navigationBar];
         }
     }

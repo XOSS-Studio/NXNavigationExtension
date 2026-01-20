@@ -211,6 +211,68 @@
 @end
 
 
+#pragma mark - UIHostingView 生命周期清理钩子
+
+/// 为 HostingView 关联的 NXNavigationBar 提供存储
+/// 由于 _UIHostingView 是私有类，我们通过运行时动态处理
+@interface UIView (NXHostingViewNavigationBar)
+@property (nonatomic, strong, nullable) NXNavigationBar *nx_hostingViewNavigationBar;
+@end
+
+@implementation UIView (NXHostingViewNavigationBar)
+
+- (NXNavigationBar *)nx_hostingViewNavigationBar {
+    return objc_getAssociatedObject(self, _cmd);
+}
+
+- (void)setNx_hostingViewNavigationBar:(NXNavigationBar *)nx_hostingViewNavigationBar {
+    objc_setAssociatedObject(self, @selector(nx_hostingViewNavigationBar), nx_hostingViewNavigationBar, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+@end
+
+
+/// 动态为 HostingView 类添加生命周期钩子
+static void NXSetupHostingViewLifecycleHooks(void) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        // 尝试获取 _UIHostingView 类
+        Class hostingViewClass = NSClassFromString(@"_UIHostingView");
+        if (!hostingViewClass) {
+            // iOS 版本不同可能类名不同，尝试其他变体
+            hostingViewClass = NSClassFromString(@"SwiftUI._UIHostingView");
+        }
+
+        if (hostingViewClass) {
+            // Hook removeFromSuperview
+            NXNavigationExtensionExtendImplementationOfVoidMethodWithoutArguments(hostingViewClass,
+                                                                                  @selector(removeFromSuperview),
+                                                                                  ^(__kindof UIView *_Nonnull selfObject) {
+                if (selfObject.nx_hostingViewNavigationBar) {
+                    [selfObject.nx_hostingViewNavigationBar removeFromSuperview];
+                }
+            });
+
+            // Hook didMoveToSuperview
+            NXNavigationExtensionExtendImplementationOfVoidMethodWithoutArguments(hostingViewClass,
+                                                                                  @selector(didMoveToSuperview),
+                                                                                  ^(__kindof UIView *_Nonnull selfObject) {
+                if (selfObject.nx_hostingViewNavigationBar && selfObject.superview && selfObject.superview != selfObject.nx_hostingViewNavigationBar.superview) {
+                    [selfObject.superview addSubview:selfObject.nx_hostingViewNavigationBar];
+                    [selfObject.superview bringSubviewToFront:selfObject.nx_hostingViewNavigationBar];
+                }
+            });
+        }
+    });
+}
+
+// 在模块加载时执行 HostingView 钩子设置
+__attribute__((constructor))
+static void NXNavigationExtensionHostingViewSetup(void) {
+    NXSetupHostingViewLifecycleHooks();
+}
+
+
 @implementation UINavigationBar (NXNavigationExtensionInternal)
 
 + (void)load {
