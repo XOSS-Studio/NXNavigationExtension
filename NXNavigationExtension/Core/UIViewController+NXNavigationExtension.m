@@ -205,6 +205,21 @@
                                                                                 ^(__kindof UIViewController *_Nonnull selfObject, BOOL animated) {
             [selfObject nx_checkChildViewControllers];
             selfObject.nx_viewWillDisappearFinished = YES;
+            // 对于 HostingController，当视图消失时隐藏 navigationBar（因为它在 superview 上，不会随 view 一起隐藏）
+            if ([selfObject nx_isHostingController] || [selfObject nx_isHostingView:selfObject.view]) {
+                selfObject.nx_navigationBar.hidden = YES;
+            }
+        });
+
+        NXNavigationExtensionExtendImplementationOfVoidMethodWithSingleArgument([UIViewController class],
+                                                                                @selector(viewDidDisappear:),
+                                                                                BOOL,
+                                                                                ^(__kindof UIViewController *_Nonnull selfObject, BOOL animated) {
+            // 对于 HostingController，当视图完全消失后，将 navigationBar 从 superview 移除
+            // 这避免了多个 VC 的 bar 堆叠在同一个 superview 上
+            if ([selfObject nx_isHostingController] || [selfObject nx_isHostingView:selfObject.view]) {
+                [selfObject.nx_navigationBar removeFromSuperview];
+            }
         });
         
         NXNavigationExtensionExtendImplementationOfVoidMethodWithSingleArgument([UIViewController class],
