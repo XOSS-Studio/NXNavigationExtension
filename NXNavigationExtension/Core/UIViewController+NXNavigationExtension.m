@@ -286,9 +286,24 @@
 
 /// 检测当前 ViewController 是否为 UIHostingController（SwiftUI 容器）
 - (BOOL)nx_isHostingController {
-    // 检测类名是否包含 "HostingController"（覆盖 UIHostingController 及其子类）
+    // 检测类名是否包含 "Hosting"（覆盖 UIHostingController、NXSwiftUIHostingVC 及其子类）
+    // 同时检测父类链，确保继承自 UIHostingController 的类都能被识别
     NSString *className = NSStringFromClass([self class]);
-    return [className containsString:@"HostingController"];
+    if ([className containsString:@"HostingController"] || [className containsString:@"HostingVC"]) {
+        return YES;
+    }
+
+    // 检测父类链中是否有 UIHostingController
+    Class currentClass = [self class];
+    while (currentClass) {
+        NSString *superClassName = NSStringFromClass(currentClass);
+        if ([superClassName isEqualToString:@"UIHostingController"]) {
+            return YES;
+        }
+        currentClass = [currentClass superclass];
+    }
+
+    return NO;
 }
 
 /// 检测当前 View 是否为 _UIHostingView（SwiftUI 宿主视图）
