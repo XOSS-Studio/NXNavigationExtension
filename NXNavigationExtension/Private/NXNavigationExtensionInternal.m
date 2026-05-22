@@ -129,9 +129,19 @@
 @end
 
 
+/// KVO 上下文，用于精确区分本类注册的 frame 观察，避免错配父类或其他观察者的回调。
+static void * const NXNavigationObservationFrameContext = (void *)&NXNavigationObservationFrameContext;
+
+
 @interface NXNavigationObservationDelegate ()
 
 @property (nonatomic, weak) __kindof UIViewController *observe;
+
+/// 注册 KVO 时实际观察的 UIView，必须强引用并独立保存。
+/// 注册发生在 observe.view 上，旧实现却在 dealloc 时改用 observe（UIViewController）推导注销对象，
+/// 二者不一致导致观察永不解除；observe 为弱引用，控制器先释放后此处更已为 nil。
+/// 残留的观察记录在 view 后续布局改动时向已释放的本对象发送 KVO 通知，造成野指针崩溃。
+@property (nonatomic, strong, nullable) UIView *observedView;
 
 @end
 
@@ -141,17 +151,36 @@
 - (instancetype)initWithObserve:(UIViewController *)observe {
     if (self = [super init]) {
         _observe = observe;
-        [observe.view addObserver:self forKeyPath:@"frame" options:NSKeyValueObservingOptionNew context:NULL];
+        [self startObservingView:observe.view];
     }
     return self;
 }
 
 - (void)dealloc {
-    [self.observe removeObserver:self forKeyPath:@"frame" context:NULL];
+    [self stopObserving];
+}
+
+/// 在指定 UIView 上注册 frame 的 KVO 观察；若正在观察其他 view 会先解除。
+- (void)startObservingView:(nullable UIView *)view {
+    if (!view || view == self.observedView) {
+        return;
+    }
+    [self stopObserving];
+    [view addObserver:self forKeyPath:@"frame" options:NSKeyValueObservingOptionNew context:NXNavigationObservationFrameContext];
+    self.observedView = view;
+}
+
+/// 从当前观察的 UIView 上解除 frame 的 KVO 观察。
+- (void)stopObserving {
+    if (!self.observedView) {
+        return;
+    }
+    [self.observedView removeObserver:self forKeyPath:@"frame" context:NXNavigationObservationFrameContext];
+    self.observedView = nil;
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey, id> *)change context:(void *)context {
-    if ([keyPath isEqualToString:@"frame"] && [object isKindOfClass:[UIView class]]) {
+    if (context == NXNavigationObservationFrameContext) {
         if (self.viewControllerDidUpdateFrameHandler) {
             self.viewControllerDidUpdateFrameHandler(self.observe);
         }
