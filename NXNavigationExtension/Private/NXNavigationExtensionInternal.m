@@ -472,10 +472,19 @@ static void NXNavigationExtensionHostingViewSetup(void) {
     return self.nx_configuration != nil;
 }
 
+- (BOOL)nx_shouldYieldSystemBarAppearance {
+    if (@available(iOS 26.0, *)) {
+        return self.nx_configuration.prefersSystemNavigationBarAppearance;
+    }
+    return NO;
+}
+
 - (void)nx_configureNavigationBar {
-    [self.navigationBar setBackgroundImage:[[UIImage alloc] init] forBarMetrics:UIBarMetricsDefault];
-    [self.navigationBar setShadowImage:[[UIImage alloc] init]];
-    [self.navigationBar setTranslucent:YES];
+    if (!self.nx_shouldYieldSystemBarAppearance) {
+        [self.navigationBar setBackgroundImage:[[UIImage alloc] init] forBarMetrics:UIBarMetricsDefault];
+        [self.navigationBar setShadowImage:[[UIImage alloc] init]];
+        [self.navigationBar setTranslucent:YES];
+    }
     [self nx_setupInteractivePopGestureRecognizer];
 }
 

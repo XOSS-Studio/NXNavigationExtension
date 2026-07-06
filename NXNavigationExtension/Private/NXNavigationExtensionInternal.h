@@ -121,6 +121,9 @@ typedef void (^UIViewControllerDidUpdateFrameHandler)(UIViewController *viewCont
 /// 是否使用 NXNavigationBar，默认 NO；如果导航控制器没有注册则使用系统导航栏
 @property (nonatomic, assign, readonly) BOOL nx_useNavigationBar;
 
+/// 是否在当前系统版本把导航栏外观交还系统
+@property (nonatomic, assign, readonly) BOOL nx_shouldYieldSystemBarAppearance;
+
 /// 配置 NXNavigationBar
 - (void)nx_configureNavigationBar;
 

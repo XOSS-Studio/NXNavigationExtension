@@ -180,10 +180,18 @@ static NSString *NXNavigationConfigurationCallbackKey = @"NXNavigationConfigurat
     return instance;
 }
 
+- (instancetype)init {
+    if (self = [super init]) {
+        _prefersSystemNavigationBarAppearance = NO;
+    }
+    return self;
+}
+
 - (id)copyWithZone:(NSZone *)zone {
     NXNavigationConfiguration *newConfiguration = [[NXNavigationConfiguration alloc] init];
     newConfiguration.navigationBarAppearance = [self.navigationBarAppearance copy];
     newConfiguration.viewControllerPreferences = [self.viewControllerPreferences copy];
+    newConfiguration.prefersSystemNavigationBarAppearance = self.prefersSystemNavigationBarAppearance;
     return newConfiguration;
 }
 

@@ -133,6 +133,12 @@ typedef void (^_Nullable NXViewControllerPrepareConfigurationCallback)(__kindof 
 /// 默认视图控制器偏好设置
 @property (nonatomic, strong) NXViewControllerPreferences *viewControllerPreferences;
 
+/// 是否在 iOS 26+ 上把导航栏外观交还系统。
+/// 默认 NO。打开后仅影响 iOS 26+：NX 不再清空系统栏背景、不挂自绘背景视图、
+/// 不写 legacy 外观属性；返回拦截、pop 手势、useSystemBackButton 映射等行为能力不受影响。
+/// iOS 25 及以下忽略此开关，行为与既往完全一致。
+@property (nonatomic, assign) BOOL prefersSystemNavigationBarAppearance;
+
 /// 使用当前配置注册需要设置的导航控制器
 /// @param navigationControllerClasses 需要注册的 UINavigationController 或子类类对象集合
 - (void)registerNavigationControllerClasses:(NSArray<Class> *)navigationControllerClasses;
